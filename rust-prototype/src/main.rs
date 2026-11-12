@@ -798,13 +798,7 @@ fn hud(
         format!(
             "{}   |   NATIVE RUST SLICE\nWASD: move   Shift: run   Space: interact   Mouse: look   Esc: cursor   Tab: settings   B: rival battle\n{}",
             s.world.map(&s.game.map).name,
-            if s.world.map(&s.game.map).indoor {
-                "Explore the rooms. Doors and stairs connect the original maps."
-            } else if s.game.map == "route1" {
-                "South: Pallet Town. Talk to the Mart clerk. Jump ledges heading south."
-            } else {
-                "North: Route 1. Enter the houses and lab. Read signs and talk to neighbours."
-            }
+            s.world.location_hint(&s.game.map)
         )
     };
     if p.menu {
