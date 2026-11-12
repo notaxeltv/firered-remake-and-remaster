@@ -795,10 +795,22 @@ fn hud(
     } else if let Some((name, lines, i)) = &s.game.dialogue {
         format!("{name}\n\n{}\n\nSpace / Enter: continue", lines[*i])
     } else {
+        // Those two lines are true only on the opening maps. Other outdoors use connections.
+        let map_id = s.game.map.clone();
+        let (name, indoor) = {
+            let map = s.world.map(&map_id);
+            (map.name.clone(), map.indoor)
+        };
+        let hint = if map_id == "route1" && !indoor {
+            "South: Pallet Town. Talk to the Mart clerk. Jump ledges heading south.".to_string()
+        } else if map_id == "pallet" && !indoor {
+            "North: Route 1. Enter the houses and lab. Read signs and talk to neighbours.".to_string()
+        } else {
+            s.world.location_hint(&map_id)
+        };
         format!(
             "{}   |   NATIVE RUST SLICE\nWASD: move   Shift: run   Space: interact   Mouse: look   Esc: cursor   Tab: settings   B: rival battle\n{}",
-            s.world.map(&s.game.map).name,
-            s.world.location_hint(&s.game.map)
+            name, hint
         )
     };
     if p.menu {

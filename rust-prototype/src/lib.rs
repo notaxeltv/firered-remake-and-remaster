@@ -1047,6 +1047,74 @@ mod tests {
                 ),
                 stub_map("viridian", "VIRIDIAN CITY", false, vec![]),
                 stub_map("home", "PLAYER'S HOUSE", true, vec![]),
+                stub_map("west_town", "WEST TOWN", false, vec![]),
+                stub_map("east_town", "EAST TOWN", false, vec![]),
+                stub_map("north_town", "NORTH TOWN", false, vec![]),
+                stub_map("south_town", "SOUTH TOWN", false, vec![]),
+                stub_map(
+                    "west_edge",
+                    "WEST EDGE",
+                    false,
+                    vec![Connection {
+                        direction: "left".into(),
+                        offset: 3,
+                        map: "west_town".into(),
+                    }],
+                ),
+                stub_map(
+                    "east_edge",
+                    "EAST EDGE",
+                    false,
+                    vec![Connection {
+                        direction: "right".into(),
+                        offset: 4,
+                        map: "east_town".into(),
+                    }],
+                ),
+                stub_map(
+                    "crossroads",
+                    "CROSSROADS",
+                    false,
+                    vec![
+                        Connection {
+                            direction: "right".into(),
+                            offset: 1,
+                            map: "east_town".into(),
+                        },
+                        Connection {
+                            direction: "left".into(),
+                            offset: 2,
+                            map: "west_town".into(),
+                        },
+                        Connection {
+                            direction: "down".into(),
+                            offset: 3,
+                            map: "south_town".into(),
+                        },
+                        Connection {
+                            direction: "up".into(),
+                            offset: 4,
+                            map: "north_town".into(),
+                        },
+                    ],
+                ),
+                stub_map(
+                    "linked_room",
+                    "LINKED ROOM",
+                    true,
+                    vec![
+                        Connection {
+                            direction: "up".into(),
+                            offset: 0,
+                            map: "north_town".into(),
+                        },
+                        Connection {
+                            direction: "left".into(),
+                            offset: 0,
+                            map: "west_town".into(),
+                        },
+                    ],
+                ),
             ],
         };
         assert_eq!(w.location_hint("pallet"), "North: ROUTE 1.");
@@ -1057,6 +1125,16 @@ mod tests {
         assert_eq!(w.location_hint("viridian"), "Explore the area.");
         assert_eq!(
             w.location_hint("home"),
+            "Explore the rooms. Doors and stairs connect the original maps."
+        );
+        assert_eq!(w.location_hint("west_edge"), "West: WEST TOWN.");
+        assert_eq!(w.location_hint("east_edge"), "East: EAST TOWN.");
+        assert_eq!(
+            w.location_hint("crossroads"),
+            "North: NORTH TOWN. South: SOUTH TOWN. West: WEST TOWN. East: EAST TOWN."
+        );
+        assert_eq!(
+            w.location_hint("linked_room"),
             "Explore the rooms. Doors and stairs connect the original maps."
         );
     }
