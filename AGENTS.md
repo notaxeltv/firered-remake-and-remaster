@@ -39,9 +39,6 @@ deps/                          bundled SDL2 + toml++ for offline builds (don't r
 tools/                         one-command scripts (see below) + tools/py helpers
 docs/STATE.md                  features, file map, config keys, gotchas, TODO
 docs/BUILD.md                  build / deploy / debug details
-docs/CONTRIBUTING-RUST.md      Rust port contributor rules + PR checklist
-docs/RUST-VM-COVERAGE.md       ScrCmd / gSpecials coverage tables
-docs/RUST-COLLABORATION.md     Codex/Gemini ownership + build lock
 ```
 
 ## Keeping usage low (important)

@@ -129,8 +129,6 @@ The core is a **plain Rust library with no renderer, emulator or GBA runtime**: 
 
 Where behaviour comes from a specific function in the decomp, the Rust code names it (for example `CalculateBaseDamage`, `CreateMon`, `TryStandardWildEncounter`, `ScrCmd_*`), so you can check the port against the original C.
 
-Contributing to the Rust port: [`docs/CONTRIBUTING-RUST.md`](docs/CONTRIBUTING-RUST.md). Field VM coverage tables: [`docs/RUST-VM-COVERAGE.md`](docs/RUST-VM-COVERAGE.md).
-
 ### How much has been ported
 
 **Status: 🚧 work in progress.** Library code so far is about **7,800 lines of Rust** with **73 automated tests**.
@@ -252,8 +250,6 @@ No. It's an unofficial, non-commercial fan project made for fun and learning.
 | `rust-prototype/tools/letsgo/` | The Let's Go importer (GFPAK / GFBMDL / GFBANM / BNTX → glTF). |
 | `letsgo-pipeline/` | Earlier research scripts from working out the Let's Go formats. |
 | `tools/`, `docs/`, `deps/` | Build scripts, design notes, bundled SDL2 + toml++. |
-| `docs/CONTRIBUTING-RUST.md` | How to contribute to FireRed Native (rules, ownership, PR checklist). |
-| `docs/RUST-VM-COVERAGE.md` | ScrCmd / special coverage vs pret (implemented / stubbed / missing). |
 
 Building needs your own game files. Generated code, game data and assets are not in the repo.
 

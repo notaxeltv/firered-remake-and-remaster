@@ -76,12 +76,6 @@ house (both floors), rival's house and Oak's lab use imported FireRed map data.
 The packaged game runs native Rust simulation, with no guest CPU, ROM or C++ runtime.
 It does not touch the installed remaster's saves, configuration or executable.
 
-Imported maps and smoke checks do not mean a finished story or battle engine.
-See `../docs/CONTRIBUTING-RUST.md` before opening a PR, and
-`../docs/RUST-VM-COVERAGE.md` for ScrCmd / special coverage
-(implemented / partial / stubbed / missing). Collaboration ownership lives in
-`../docs/RUST-COLLABORATION.md`; session hand-off in `../docs/STATE.md`.
-
 ## Play
 
 Run `run.bat` or `output/FireRed Native 3D Prototype.exe`.
