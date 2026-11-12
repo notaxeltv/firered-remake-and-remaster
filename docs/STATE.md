@@ -3,6 +3,9 @@
 Hand-off note between sessions and tools. Update it when something changes.
 Last updated: 2026-10-10 (separate Rust prototype; installed C++ game unchanged).
 
+Rust contributors: see `docs/CONTRIBUTING-RUST.md` and `docs/RUST-VM-COVERAGE.md`
+(ownership in `docs/RUST-COLLABORATION.md`). Doc index: `docs/README.md`.
+
 ## Let's Go Route 1 + Pokemon models (2026-10-10)
 
 - Route 1 renders Let's Go `area02/road001_00` (same area frame as Pallet, root shifted by the FireRed connection (0,-40)). `overlay` maps keep FireRed gameplay: Let's Go trees survive only on FireRed X tiles (155/206), Let's Go encounter grass + sign removed, and kit trees/grass/ledges dress FireRed features. `tools/letsgo/terrain.py` rasterises Let's Go ground into `assets/letsgo/<map>_height.json` (4 samples/tile, holes filled); player, NPCs, kit pieces and the camera floor stand on it (Route 1 rises ~3 tiles north). Camera boom now only stops on X tiles/buildings and rides over terrain.
