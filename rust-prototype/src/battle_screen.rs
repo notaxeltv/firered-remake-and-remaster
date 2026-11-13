@@ -319,18 +319,19 @@ pub(super) fn draw(
     if !screen.active {
         return;
     }
+    let lang = p.language;
     for mut text in &mut headers {
         text.0 = if screen.battle.is_wild {
-            "WILD POKÉMON BATTLE  |  NATIVE RUST".into()
+            super::locale::battle_header_wild(lang).into()
         } else {
-            "FIRST RIVAL BATTLE  |  NATIVE RUST".into()
+            super::locale::battle_header_rival(lang).into()
         };
     }
     for mut text in &mut subtitles {
         text.0 = if screen.battle.is_wild {
-            "Wild battle. Throw Poké Balls with [C], fight with [1-4], or flee with [5].".into()
+            super::locale::battle_subtitle_wild(lang).into()
         } else {
-            "Original FireRed trainer AI and four opening moves. Fixed test starter and random seed.".into()
+            super::locale::battle_subtitle_rival(lang).into()
         };
     }
     for (label, mut text) in &mut labels {
@@ -352,35 +353,39 @@ pub(super) fn draw(
         node.width = percent(100. * m.hp as f32 / m.stats[0] as f32);
     }
     for mut text in &mut log {
-        text.0 = screen.battle.log.join("\n");
+        text.0 = screen
+            .battle
+            .log
+            .iter()
+            .map(|line| super::locale::translate_battle_log_line(lang, line))
+            .collect::<Vec<_>>()
+            .join("\n");
         if !screen.error.is_empty() {
-            text.0.push_str(&format!("\n{}", screen.error));
+            text.0
+                .push_str(&format!("\n{}", super::locale::battle_error(lang, &screen.error)));
         }
     }
     for mut text in &mut status {
         text.0 = if screen.battle.winner.is_some() {
             if screen.battle.caught {
-                "Pokémon caught! Press Esc to return to field".into()
+                super::locale::battle_status_caught(lang).into()
             } else if screen.battle.fled {
-                "Got away safely! Press Esc to return to field".into()
+                super::locale::battle_status_fled(lang).into()
             } else if screen.battle.winner == Some(0) {
-                "Battle ended - You won! Press Esc or R to return".into()
+                super::locale::battle_status_won(lang).into()
             } else {
-                "Battle ended - Defeated! Press Esc or R to return".into()
+                super::locale::battle_status_lost(lang).into()
             }
         } else if let Some(_ai) = &screen.battle.last_ai {
-            format!(
-                "Turn {}   |   Enemy move used   |   Choose your move [1-4], Catch [C], or Run [5]",
-                screen.battle.turn,
-            )
+            super::locale::battle_status_turn(lang, screen.battle.turn)
         } else if screen.battle.is_wild {
-            format!(
-                "Wild {} appeared! Lv. {}. Catch with [C] or attack with [1-4].",
-                screen.battle.mons[1].name, screen.battle.mons[1].level
+            super::locale::battle_status_wild_appear(
+                lang,
+                &screen.battle.mons[1].name,
+                screen.battle.mons[1].level,
             )
         } else {
-            "Charmander: Hardy, IVs 31 / EVs 0. Rival Squirtle: original trainer-generated stats."
-                .into()
+            super::locale::battle_status_rival_fixture(lang).into()
         };
     }
     for (label, mut text) in &mut buttons {
@@ -396,14 +401,18 @@ pub(super) fn draw(
             }
             Action::Catch => {
                 text.0 = if screen.battle.is_wild {
-                    "C  Poké Ball".into()
+                    super::locale::battle_btn_ball(lang).into()
                 } else {
                     "-".into()
                 };
             }
             Action::Run => {
                 text.0 = if screen.battle.is_wild {
-                    "5  Run".into()
+                    match lang {
+                        super::locale::Language::Italian => "5  Fuga",
+                        super::locale::Language::English => "5  Run",
+                    }
+                    .into()
                 } else {
                     "-".into()
                 };
@@ -412,7 +421,11 @@ pub(super) fn draw(
                 text.0 = if screen.integrated {
                     "-".into()
                 } else {
-                    "R  Restart".into()
+                    match lang {
+                        super::locale::Language::Italian => "R  Ricomincia",
+                        super::locale::Language::English => "R  Restart",
+                    }
+                    .into()
                 };
             }
             _ => {}
