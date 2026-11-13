@@ -795,17 +795,27 @@ fn hud(
     } else if let Some((name, lines, i)) = &s.game.dialogue {
         format!("{name}\n\n{}\n\nSpace / Enter: continue", lines[*i])
     } else {
-        format!(
-            "{}   |   NATIVE RUST SLICE\nWASD: move   Shift: run   Space: interact   Mouse: look   Esc: cursor   Tab: settings   B: rival battle\n{}",
-            s.world.map(&s.game.map).name,
-            if s.world.map(&s.game.map).indoor {
-                "Explore the rooms. Doors and stairs connect the original maps."
-            } else if s.game.map == "route1" {
+        {
+            // Opening-slice copy stays on Pallet/Route 1; other outdoors use connections.
+            let map_id = s.game.map.clone();
+            let (name, indoor) = {
+                let map = s.world.map(&map_id);
+                (map.name.clone(), map.indoor)
+            };
+            let hint = if map_id == "route1" && !indoor {
                 "South: Pallet Town. Talk to the Mart clerk. Jump ledges heading south."
-            } else {
+                    .to_string()
+            } else if map_id == "pallet" && !indoor {
                 "North: Route 1. Enter the houses and lab. Read signs and talk to neighbours."
-            }
-        )
+                    .to_string()
+            } else {
+                s.world.location_hint(&map_id)
+            };
+            format!(
+                "{}   |   NATIVE RUST SLICE\nWASD: move   Shift: run   Space: interact   Mouse: look   Esc: cursor   Tab: settings   B: rival battle\n{}",
+                name, hint
+            )
+        }
     };
     if p.menu {
         body.push_str(&format!(

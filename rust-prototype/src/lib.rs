@@ -173,6 +173,41 @@ impl World {
         };
         target.in_bounds(p).then_some((c.map.clone(), p))
     }
+
+    /// Short outdoor HUD line from cardinal map connections; indoor stays generic.
+    /// Presentation only — does not change movement or scripting.
+    pub fn location_hint(&self, map_id: &str) -> String {
+        let map = self.map(map_id);
+        if map.indoor {
+            return "Explore the rooms. Doors and stairs connect the original maps.".into();
+        }
+        const ORDER: [&str; 4] = ["up", "down", "left", "right"];
+        let mut parts = Vec::new();
+        for dir in ORDER {
+            let Some(c) = map.connections.iter().find(|c| c.direction == dir) else {
+                continue;
+            };
+            let label = self
+                .maps
+                .iter()
+                .find(|m| m.id == c.map)
+                .map(|m| m.name.as_str())
+                .unwrap_or(c.map.as_str());
+            let cardinal = match dir {
+                "up" => "North",
+                "down" => "South",
+                "left" => "West",
+                "right" => "East",
+                _ => dir,
+            };
+            parts.push(format!("{cardinal}: {label}"));
+        }
+        if parts.is_empty() {
+            "Explore the area.".into()
+        } else {
+            format!("{}.", parts.join(". "))
+        }
+    }
 }
 impl Map {
     pub fn encounter_type(&self, p: Cell) -> u8 {
@@ -957,5 +992,150 @@ mod tests {
         assert_eq!(camera_direction(0, 0, 1., true), None);
         let d = camera_direction(1, -1, 0., false).unwrap();
         assert!([NORTH, SOUTH, EAST, WEST].contains(&d));
+    }
+
+    fn stub_map(id: &str, name: &str, indoor: bool, connections: Vec<Connection>) -> Map {
+        Map {
+            id: id.into(),
+            name: name.into(),
+            spawn: Cell(0, 0),
+            tiles: vec![".".into()],
+            cells: vec![0],
+            behaviors: vec![0],
+            encounter_types: vec![0],
+            indoor,
+            allow_running: !indoor,
+            props: vec![],
+            npcs: vec![],
+            signs: vec![],
+            warps: vec![],
+            connections,
+            source: "test".into(),
+        }
+    }
+
+    #[test]
+    fn location_hint_lists_cardinal_connections_in_stable_order() {
+        let w = World {
+            maps: vec![
+                stub_map(
+                    "pallet",
+                    "PALLET TOWN",
+                    false,
+                    vec![Connection {
+                        direction: "up".into(),
+                        offset: 0,
+                        map: "route1".into(),
+                    }],
+                ),
+                stub_map(
+                    "route1",
+                    "ROUTE 1",
+                    false,
+                    vec![
+                        Connection {
+                            direction: "down".into(),
+                            offset: 0,
+                            map: "pallet".into(),
+                        },
+                        Connection {
+                            direction: "up".into(),
+                            offset: 0,
+                            map: "viridian".into(),
+                        },
+                    ],
+                ),
+                stub_map("viridian", "VIRIDIAN CITY", false, vec![]),
+                stub_map("home", "PLAYER'S HOUSE", true, vec![]),
+                stub_map("west_town", "WEST TOWN", false, vec![]),
+                stub_map("east_town", "EAST TOWN", false, vec![]),
+                stub_map("north_town", "NORTH TOWN", false, vec![]),
+                stub_map("south_town", "SOUTH TOWN", false, vec![]),
+                stub_map(
+                    "west_edge",
+                    "WEST EDGE",
+                    false,
+                    vec![Connection {
+                        direction: "left".into(),
+                        offset: 3,
+                        map: "west_town".into(),
+                    }],
+                ),
+                stub_map(
+                    "east_edge",
+                    "EAST EDGE",
+                    false,
+                    vec![Connection {
+                        direction: "right".into(),
+                        offset: 4,
+                        map: "east_town".into(),
+                    }],
+                ),
+                stub_map(
+                    "crossroads",
+                    "CROSSROADS",
+                    false,
+                    vec![
+                        Connection {
+                            direction: "right".into(),
+                            offset: 1,
+                            map: "east_town".into(),
+                        },
+                        Connection {
+                            direction: "left".into(),
+                            offset: 2,
+                            map: "west_town".into(),
+                        },
+                        Connection {
+                            direction: "down".into(),
+                            offset: 3,
+                            map: "south_town".into(),
+                        },
+                        Connection {
+                            direction: "up".into(),
+                            offset: 4,
+                            map: "north_town".into(),
+                        },
+                    ],
+                ),
+                stub_map(
+                    "linked_room",
+                    "LINKED ROOM",
+                    true,
+                    vec![
+                        Connection {
+                            direction: "up".into(),
+                            offset: 0,
+                            map: "north_town".into(),
+                        },
+                        Connection {
+                            direction: "left".into(),
+                            offset: 0,
+                            map: "west_town".into(),
+                        },
+                    ],
+                ),
+            ],
+        };
+        assert_eq!(w.location_hint("pallet"), "North: ROUTE 1.");
+        assert_eq!(
+            w.location_hint("route1"),
+            "North: VIRIDIAN CITY. South: PALLET TOWN."
+        );
+        assert_eq!(w.location_hint("viridian"), "Explore the area.");
+        assert_eq!(
+            w.location_hint("home"),
+            "Explore the rooms. Doors and stairs connect the original maps."
+        );
+        assert_eq!(w.location_hint("west_edge"), "West: WEST TOWN.");
+        assert_eq!(w.location_hint("east_edge"), "East: EAST TOWN.");
+        assert_eq!(
+            w.location_hint("crossroads"),
+            "North: NORTH TOWN. South: SOUTH TOWN. West: WEST TOWN. East: EAST TOWN."
+        );
+        assert_eq!(
+            w.location_hint("linked_room"),
+            "Explore the rooms. Doors and stairs connect the original maps."
+        );
     }
 }
