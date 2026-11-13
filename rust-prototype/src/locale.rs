@@ -1,8 +1,11 @@
 //! UI language for the Rust prototype shell.
 //!
-//! Game logic and imported FireRed data stay USA-sourced. This module only
-//! translates presentation strings we own (HUD, Settings, battle shell).
-//! Imported NPC/script dialogue remains English until a dialogue catalog lands.
+//! Game logic and imported FireRed data stay USA-sourced. This module
+//! translates presentation strings we own (HUD, Settings, battle shell) and
+//! opening-slice dialogue via `locale/it_dialogue.json` (English key → Italian).
+
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub(super) enum Language {
@@ -291,9 +294,32 @@ pub(super) fn connections_hint(lang: Language, parts: &[(/*cardinal*/ &str, /*pl
     format!("{body}.")
 }
 
+fn dialogue_catalog() -> &'static HashMap<String, String> {
+    static CAT: OnceLock<HashMap<String, String>> = OnceLock::new();
+    CAT.get_or_init(|| {
+        #[derive(serde::Deserialize)]
+        struct File {
+            by_english: HashMap<String, String>,
+        }
+        let raw = include_str!("../locale/it_dialogue.json");
+        serde_json::from_str::<File>(raw)
+            .map(|f| f.by_english)
+            .unwrap_or_default()
+    })
+}
+
+pub(super) fn translate_dialogue(lang: Language, line: &str) -> String {
+    if !matches!(lang, Language::Italian) {
+        return line.to_string();
+    }
+    dialogue_catalog()
+        .get(line)
+        .cloned()
+        .unwrap_or_else(|| line.to_string())
+}
+
 pub(super) fn dialogue_line(lang: Language, name: &str, line: &str) -> String {
-    // Phase 1: UI chrome only. Imported script text stays as sourced until catalogued.
-    let _ = lang;
+    let line = translate_dialogue(lang, line);
     format!("{name}\n\n{line}\n\n{}", continue_prompt(lang))
 }
 
@@ -462,5 +488,14 @@ mod tests {
         );
         assert!(s.contains("IMPOSTAZIONI"));
         assert!(s.contains("Lingua: Italiano"));
+    }
+
+    #[test]
+    fn opening_slice_dialogue_translates() {
+        let en = "ROUTE 1\nPALLET TOWN - VIRIDIAN CITY";
+        let it = translate_dialogue(Language::Italian, en);
+        assert_eq!(it, "PERCORSO 1\nBIANCAVILLA - SMERALDOPOLI");
+        assert_eq!(translate_dialogue(Language::English, en), en);
+        assert!(dialogue_catalog().len() >= 200);
     }
 }
