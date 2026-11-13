@@ -353,7 +353,13 @@ pub(super) fn draw(
         node.width = percent(100. * m.hp as f32 / m.stats[0] as f32);
     }
     for mut text in &mut log {
-        text.0 = screen.battle.log.join("\n");
+        text.0 = screen
+            .battle
+            .log
+            .iter()
+            .map(|line| super::locale::translate_battle_log_line(lang, line))
+            .collect::<Vec<_>>()
+            .join("\n");
         if !screen.error.is_empty() {
             text.0
                 .push_str(&format!("\n{}", super::locale::battle_error(lang, &screen.error)));

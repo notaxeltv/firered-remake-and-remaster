@@ -1,8 +1,9 @@
 //! UI language for the Rust prototype shell.
 //!
 //! Game logic and imported FireRed data stay USA-sourced. This module
-//! translates presentation strings we own (HUD, Settings, battle shell) and
-//! opening-slice dialogue via `locale/it_dialogue.json` (English key → Italian).
+//! translates presentation strings we own (HUD, Settings, battle shell),
+//! imported map titles (`locale/it_map_titles.json`), dialogue paragraphs
+//! (`locale/it_dialogue.json`), and battle log lines at display time.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -46,20 +47,27 @@ impl Language {
     }
 }
 
+fn map_title_catalog() -> &'static HashMap<String, String> {
+    static CAT: OnceLock<HashMap<String, String>> = OnceLock::new();
+    CAT.get_or_init(|| {
+        #[derive(serde::Deserialize)]
+        struct File {
+            by_id: HashMap<String, String>,
+        }
+        serde_json::from_str::<File>(include_str!("../locale/it_map_titles.json"))
+            .map(|f| f.by_id)
+            .unwrap_or_default()
+    })
+}
+
 pub(super) fn map_title(lang: Language, map_id: &str, fallback: &str) -> String {
     if !matches!(lang, Language::Italian) {
         return fallback.to_string();
     }
-    let it = match map_id {
-        "pallet" => "BIANCAVILLA",
-        "route1" => "PERCORSO 1",
-        "viridian" => "SMERALDOPOLI",
-        "home" | "home_2f" => "CASA DEL GIOCATORE",
-        "rival_home" => "CASA DEL RIVALE",
-        "oak_lab" | "lab" => "LABORATORIO DI OAK",
-        _ => return fallback.to_string(),
-    };
-    it.to_string()
+    map_title_catalog()
+        .get(map_id)
+        .cloned()
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 pub(super) fn settings(
@@ -459,6 +467,148 @@ pub(super) fn battle_error(lang: Language, english: &str) -> String {
     it.to_string()
 }
 
+/// Translate one battle engine log line at display time (leave `battle.rs` untouched).
+pub(super) fn translate_battle_log_line(lang: Language, line: &str) -> String {
+    if !matches!(lang, Language::Italian) {
+        return line.to_string();
+    }
+    let exact = match line {
+        "But it failed!" => "Ma ha fallito!",
+        "It's not very effective..." => "Non e' molto efficace...",
+        "It's super effective!" => "E' superefficace!",
+        "Got away safely!" => "Scampato pericolo!",
+        "Can't escape!" => "Non si puo' fuggire!",
+        "Cannot run from a trainer battle!" => "Non puoi fuggire da una lotta con un allenatore!",
+        "The trainer blocked the BALL!" => "L'allenatore ha bloccato la BALL!",
+        "The attack missed!" => "L'attacco ha mancato!",
+        "The stat cannot fall any lower!" => "La statistica non puo' scendere ancora!",
+        "Safeguard protected the target!" => "Scudo Reale ha protetto il bersaglio!",
+        "Fire's power was weakened!" => "La potenza del Fuoco e' stata indebolita!",
+        "Aww! It appeared to be caught!" => "Ahh! Sembrava catturato!",
+        _ => "",
+    };
+    if !exact.is_empty() {
+        return exact.to_string();
+    }
+
+    if let Some((wild, go)) = line
+        .strip_prefix("Wild ")
+        .and_then(|rest| rest.split_once(" appeared! Go, "))
+    {
+        if let Some(go) = go.strip_suffix('!') {
+            return format!("Appare {wild} selvatico! Vai, {go}!");
+        }
+    }
+    if let Some((rival, go)) = line
+        .strip_prefix("RIVAL sent out ")
+        .and_then(|rest| rest.split_once("! Go, "))
+    {
+        if let Some(go) = go.strip_suffix('!') {
+            return format!("Il RIVALE manda in campo {rival}! Vai, {go}!");
+        }
+    }
+    if let Some(name) = line
+        .strip_prefix("Gotcha! ")
+        .and_then(|rest| rest.strip_suffix(" was caught!"))
+    {
+        return format!("Preso! {name} e' stato catturato!");
+    }
+    if let Some(name) = line.strip_suffix(" fled from battle!") {
+        return format!("{name} e' fuggito dalla lotta!");
+    }
+    if let Some(name) = line.strip_suffix(" fainted!") {
+        return format!("{name} e' esausto!");
+    }
+    if let Some((name, rest)) = line.split_once(" fainted. ") {
+        return format!("{name} e' esausto. {rest}");
+    }
+    if let Some((name, lvl)) = line
+        .strip_suffix('!')
+        .and_then(|rest| rest.split_once(" grew to level "))
+    {
+        return format!("{name} e' salito al livello {lvl}!");
+    }
+    if let Some(name) = line.strip_suffix(" was poisoned!") {
+        return format!("{name} e' stato avvelenato!");
+    }
+    if let Some(name) = line.strip_suffix(" was burned!") {
+        return format!("{name} e' stato bruciato!");
+    }
+    if let Some(name) = line.strip_suffix(" was frozen solid!") {
+        return format!("{name} e' stato congelato!");
+    }
+    if let Some(name) = line.strip_suffix(" is frozen solid!") {
+        return format!("{name} e' congelato!");
+    }
+    if let Some(name) = line.strip_suffix(" fell asleep!") {
+        return format!("{name} e' addormentato!");
+    }
+    if let Some(name) = line.strip_suffix(" is fast asleep.") {
+        return format!("{name} sta dormendo profondamente.");
+    }
+    if let Some(name) = line.strip_suffix(" woke up!") {
+        return format!("{name} si e' svegliato!");
+    }
+    if let Some(name) = line.strip_suffix(" is already asleep!") {
+        return format!("{name} sta gia' dormendo!");
+    }
+    if let Some(name) = line.strip_suffix(" stayed awake!") {
+        return format!("{name} e' rimasto sveglio!");
+    }
+    if let Some(name) = line.strip_suffix(" became confused!") {
+        return format!("{name} e' confuso!");
+    }
+    if let Some(name) = line.strip_suffix(" is paralyzed! It can't move!") {
+        return format!("{name} e' paralizzato! Non puo' muoversi!");
+    }
+    if let Some(name) = line.strip_suffix(" is paralyzed! It may be unable to move!") {
+        return format!("{name} e' paralizzato! Potrebbe non riuscire a muoversi!");
+    }
+    if let Some(name) = line.strip_suffix("'s Defense rose!") {
+        return format!("La Difesa di {name} aumenta!");
+    }
+    if let Some(name) = line.strip_suffix("'s Defense fell!") {
+        return format!("La Difesa di {name} diminuisce!");
+    }
+    if let Some(name) = line.strip_suffix("'s Attack fell!") {
+        return format!("L'Attacco di {name} diminuisce!");
+    }
+    if let Some(name) = line.strip_suffix("'s Speed fell!") {
+        return format!("La Velocita' di {name} diminuisce!");
+    }
+    if let Some(name) = line.strip_suffix("'s Accuracy fell!") {
+        return format!("La Precisione di {name} diminuisce!");
+    }
+    if let Some(name) = line.strip_suffix("'s Defense won't go higher!") {
+        return format!("La Difesa di {name} non puo' aumentare ancora!");
+    }
+    if let Some(name) = line
+        .strip_prefix("It doesn't affect ")
+        .and_then(|rest| rest.strip_suffix("..."))
+    {
+        return format!("Non ha effetto su {name}...");
+    }
+    if let Some(dmg) = line.strip_prefix("It hurt itself in its confusion! ") {
+        if let Some(dmg) = dmg.strip_suffix(" damage") {
+            return format!("Si e' ferito nella confusione! {dmg} danni");
+        }
+    }
+    if let Some((left, right)) = line.split_once(" is hurt by ") {
+        if let Some((cause, dmg)) = right.split_once("! ") {
+            if let Some(dmg) = dmg.strip_suffix(" damage") {
+                return format!("{left} e' ferito da {cause}! {dmg} danni");
+            }
+        }
+    }
+    if line == "RIVAL won!" {
+        return "Il RIVALE ha vinto!".into();
+    }
+    if let Some(name) = line.strip_suffix(" won!") {
+        return format!("{name} ha vinto!");
+    }
+    line.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -497,5 +647,23 @@ mod tests {
         assert_eq!(it, "PERCORSO 1\nBIANCAVILLA - SMERALDOPOLI");
         assert_eq!(translate_dialogue(Language::English, en), en);
         assert!(dialogue_catalog().len() >= 200);
+    }
+
+    #[test]
+    fn map_titles_cover_imported_ids() {
+        assert_eq!(map_title(Language::Italian, "viridian", "x"), "Smeraldopoli");
+        assert!(map_title_catalog().len() >= 180);
+    }
+
+    #[test]
+    fn battle_log_patterns_translate() {
+        assert_eq!(
+            translate_battle_log_line(Language::Italian, "Wild PIDGEY appeared! Go, CHARMANDER!"),
+            "Appare PIDGEY selvatico! Vai, CHARMANDER!"
+        );
+        assert_eq!(
+            translate_battle_log_line(Language::Italian, "It's super effective!"),
+            "E' superefficace!"
+        );
     }
 }
