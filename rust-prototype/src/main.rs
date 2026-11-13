@@ -3,6 +3,7 @@ mod battle_screen;
 mod battle_stage;
 mod letsgo_material;
 mod field_screen;
+mod locale;
 mod music;
 mod models;
 mod persistence;
@@ -53,6 +54,7 @@ struct Preferences {
     free_move: bool,
     diagonal: bool,
     third_person: bool,
+    language: locale::Language,
     captured: bool,
     pitch: f32,
     orbit: bool,
@@ -84,6 +86,7 @@ impl Preferences {
             free_move: !ini.contains("free_movement=0"),
             diagonal: !ini.contains("diagonal_movement=0"),
             third_person: !ini.contains("third_person=0"),
+            language: locale::Language::from_ini(&ini),
             captured: true,
             pitch: 0.42,
             orbit: !ini.contains("camera_rotation=0"),
@@ -96,7 +99,7 @@ impl Preferences {
     }
     fn save(&self) {
         let text = format!(
-            "[Prototype]\nfield_scripts={}\nnative_state={}\nbattle_slice={}\nsource_textures={}\nmusic={}\nfree_movement={}\ndiagonal_movement={}\nthird_person={}\ncamera_rotation={}\nsmooth_movement={}\n",
+            "[Prototype]\nfield_scripts={}\nnative_state={}\nbattle_slice={}\nsource_textures={}\nmusic={}\nfree_movement={}\ndiagonal_movement={}\nthird_person={}\ncamera_rotation={}\nsmooth_movement={}\nlanguage={}\n",
             u8::from(self.field_scripts),
             u8::from(self.native_state),
             u8::from(self.battle_slice),
@@ -106,7 +109,8 @@ impl Preferences {
             u8::from(self.diagonal),
             u8::from(self.third_person),
             u8::from(self.orbit),
-            u8::from(self.smooth)
+            u8::from(self.smooth),
+            self.language.ini_value()
         );
         let text = format!("{text}actor_scenes={}\nred_model={}\n", u8::from(self.actor_scenes), u8::from(self.red_model));
         let text = format!("{text}character_animation={}\ntrainer_models={}\npokemon_models={}\n", u8::from(self.character_animation), u8::from(self.trainer_models), u8::from(self.pokemon_models));
@@ -569,13 +573,17 @@ fn input(
                         s.dirty = true;
                         p.menu = false;
                     }
-                    Err(e) => session.error = format!("Save reset failed: {e}"),
+                    Err(e) => session.error = locale::save_reset_failed(p.language, &e),
                 }
                 p.reset_pending = false;
             } else {
                 p.reset_pending = true;
             }
             return;
+        }
+        if keys.just_pressed(KeyCode::KeyI) {
+            p.language = p.language.toggle();
+            p.save();
         }
         if keys.just_pressed(KeyCode::Digit1) {
             p.orbit = !p.orbit;
@@ -772,59 +780,76 @@ fn hud(
     session: Res<persistence::Session>,
     mut text: Single<&mut Text, With<Hud>>,
 ) {
+    let lang = p.language;
     let mut body = if p.menu {
-        format!(
-            "SETTINGS\n\n1   Camera rotation: {}\n2   Smooth movement: {}\n3   Third-person mouse camera: {}\n4   Diagonal grid movement: {}\n5   Free movement: {}\n6   Original surface textures: {}\n7   Music: {}\n8   Opening rival battle slice: {}\n9   Native save/load (restart): {}\n0   Original field scripts (partial): {}\nV   Imported Red playable model: {}\n\nTab / F1 / Esc: close     Changes save automatically.",
-            if p.orbit { "ON" } else { "OFF" },
-            if p.smooth { "ON" } else { "OFF" },
-            if p.third_person { "ON" } else { "OFF" },
-            if p.diagonal { "ON" } else { "OFF" },
-            if p.free_move { "ON" } else { "OFF" },
-            if p.source_art { "ON" } else { "OFF" },
-            if p.music { "ON" } else { "OFF" },
-            if p.battle_slice { "ON" } else { "OFF" },
-            if p.native_state { "ON" } else { "OFF" },
-            if p.field_scripts { "ON" } else { "OFF" },
-            if p.red_model { "ON" } else { "OFF" }
+        locale::settings(
+            lang,
+            p.orbit,
+            p.smooth,
+            p.third_person,
+            p.diagonal,
+            p.free_move,
+            p.source_art,
+            p.music,
+            p.battle_slice,
+            p.native_state,
+            p.field_scripts,
+            p.red_model,
         )
     } else if slice_start::needs_starter(&p, &session) && s.game.dialogue.is_none() {
-        format!(
-            "{}   |   PLAYABLE SLICE\nChoose your partner:   1  Bulbasaur     2  Charmander     3  Squirtle\nThen explore Pallet Town and Route 1: tall grass has wild Pokemon. Tab: settings",
-            s.world.map(&s.game.map).name
-        )
+        let map = s.world.map(&s.game.map);
+        locale::starter_prompt(lang, &locale::map_title(lang, &s.game.map, &map.name))
     } else if let Some((name, lines, i)) = &s.game.dialogue {
-        format!("{name}\n\n{}\n\nSpace / Enter: continue", lines[*i])
+        locale::dialogue_line(lang, name, &lines[*i])
     } else {
-        format!(
-            "{}   |   NATIVE RUST SLICE\nWASD: move   Shift: run   Space: interact   Mouse: look   Esc: cursor   Tab: settings   B: rival battle\n{}",
-            s.world.map(&s.game.map).name,
-            if s.world.map(&s.game.map).indoor {
-                "Explore the rooms. Doors and stairs connect the original maps."
-            } else if s.game.map == "route1" {
-                "South: Pallet Town. Talk to the Mart clerk. Jump ledges heading south."
-            } else {
-                "North: Route 1. Enter the houses and lab. Read signs and talk to neighbours."
+        let map_id = s.game.map.clone();
+        let map = s.world.map(&map_id);
+        let title = locale::map_title(lang, &map_id, &map.name);
+        let hint = if let Some(h) = locale::opening_hint(lang, &map_id) {
+            h.to_string()
+        } else if map.indoor {
+            locale::indoor_hint(lang).to_string()
+        } else {
+            const ORDER: [&str; 4] = ["up", "down", "left", "right"];
+            let mut parts = Vec::new();
+            for dir in ORDER {
+                let Some(c) = map.connections.iter().find(|c| c.direction == dir) else {
+                    continue;
+                };
+                let place = s
+                    .world
+                    .maps
+                    .iter()
+                    .find(|m| m.id == c.map)
+                    .map(|m| locale::map_title(lang, &m.id, &m.name))
+                    .unwrap_or_else(|| c.map.clone());
+                parts.push((locale::cardinal(lang, dir), place));
             }
+            let refs: Vec<(&str, &str)> = parts.iter().map(|(c, p)| (*c, p.as_str())).collect();
+            locale::connections_hint(lang, &refs)
+        };
+        format!(
+            "{}   |   {}\n{}\n{}",
+            title,
+            locale::field_header(lang),
+            locale::field_controls(lang),
+            hint
         )
     };
     if p.menu {
-        body.push_str(&format!(
-            "\nM: Original actors and map scenes (partial): {}\nA: Character animations: {}   T: Trainer models: {}   P: Pokemon models: {}   L: Let's Go scenery: {}   K: Effects: {}\nY: Slice quick start (pick a starter, skip story): {}   G: 3D battle stage: {}\nH: Let's Go shading (trees, ground, water): {}",
-            if p.actor_scenes { "ON" } else { "OFF" },
-            if p.character_animation { "ON" } else { "OFF" },
-            if p.trainer_models { "ON" } else { "OFF" },
-            if p.pokemon_models { "ON" } else { "OFF" },
-            if p.letsgo_scenery { "ON" } else { "OFF" },
-            if p.effects { "ON" } else { "OFF" },
-            if p.quick_start { "ON" } else { "OFF" },
-            if p.battle_3d { "ON" } else { "OFF" },
-            if p.letsgo_shading { "ON" } else { "OFF" }
+        body.push_str(&locale::settings_extras(
+            lang,
+            p.actor_scenes,
+            p.character_animation,
+            p.trainer_models,
+            p.pokemon_models,
+            p.letsgo_scenery,
+            p.effects,
+            p.quick_start,
+            p.battle_3d,
+            p.letsgo_shading,
         ));
-        body.push_str(if p.reset_pending {
-            "\nReset all Rust progress? Press R again to confirm. Previous save backed up."
-        } else {
-            "\nR: reset Rust save and progress (keeps current location)"
-        });
+        body.push_str(locale::reset_prompt(lang, p.reset_pending));
     }
     if !session.error.is_empty() {
         body.push_str(&format!("\n{}", session.error));
@@ -833,12 +858,29 @@ fn hud(
         text.0 = body;
     }
 }
-/// The bundled UI font has no accented glyphs; show "Pokemon" instead of a missing box.
+/// The bundled UI font has no accented glyphs; fold them to ASCII so Italian UI stays readable.
 fn font_safe_text(mut q: Query<&mut Text, Changed<Text>>) {
     for mut t in &mut q {
         if !t.0.is_ascii() {
-            let fixed = t.0.replace('é', "e").replace('É', "E").replace('…', "...")
-                .replace(['“', '”'], "\"").replace(['‘', '’'], "'");
+            let fixed = t
+                .0
+                .replace(['à', 'á', 'â', 'ä'], "a")
+                .replace(['è', 'é', 'ê', 'ë'], "e")
+                .replace(['ì', 'í', 'î', 'ï'], "i")
+                .replace(['ò', 'ó', 'ô', 'ö'], "o")
+                .replace(['ù', 'ú', 'û', 'ü'], "u")
+                .replace(['À', 'Á', 'Â', 'Ä'], "A")
+                .replace(['È', 'É', 'Ê', 'Ë'], "E")
+                .replace(['Ì', 'Í', 'Î', 'Ï'], "I")
+                .replace(['Ò', 'Ó', 'Ô', 'Ö'], "O")
+                .replace(['Ù', 'Ú', 'Û', 'Ü'], "U")
+                .replace('ç', "c")
+                .replace('Ç', "C")
+                .replace('ñ', "n")
+                .replace('Ñ', "N")
+                .replace('…', "...")
+                .replace(['“', '”'], "\"")
+                .replace(['‘', '’'], "'");
             if fixed != t.0 {
                 t.0 = fixed;
             }
